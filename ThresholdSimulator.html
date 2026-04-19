@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Op-Amp Threshold Simulator</title>
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --card-bg: #ffffff;
+            --primary: #2563eb;
+            --accent-red: #ef4444;
+            --accent-green: #22c55e;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --led-off: #334155;
+            --led-on: #ff1f1f;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        /* Dashboard Layout */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        @media (max-width: 768px) {
+            .dashboard { grid-template-columns: 1fr; }
+        }
+
+        /* Controls Area */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            justify-content: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        /* Toggle Switch */
+        .mode-switch {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .switch input { opacity: 0; width: 0; height: 0; }
+
+        .slider-round {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider-round:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider-round { background-color: var(--primary); }
+        input:checked + .slider-round:before { transform: translateX(26px); }
+
+        /* Visualization Area */
+        .visuals {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            border-left: 1px solid #e2e8f0;
+            padding-left: 20px;
+        }
+
+        #opamp-svg {
+            width: 240px;
+            height: auto;
+        }
+
+        /* Virtual LED */
+        .led-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .led {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--led-off);
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+            transition: all 0.1s ease;
+        }
+
+        .led.active {
+            background-color: var(--led-on);
+            box-shadow: 0 0 20px var(--led-on), inset 0 0 10px rgba(255,255,255,0.5);
+        }
+
+        /* Graphing */
+        .graph-container {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        canvas {
+            width: 100%;
+            height: 250px;
+            display: block;
+        }
+
+        /* Education Section */
+        .education {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 16px;
+            line-height: 1.6;
+        }
+
+        .math-box {
+            background: #f8fafc;
+            padding: 15px;
+            border-left: 4px solid var(--primary);
+            font-family: monospace;
+            margin: 15px 0;
+        }
+
+        footer {
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: var(--text-sub);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Op-Amp Threshold Simulator</h1>
+            <p>Real-time visualizer for comparator logic and saturation.</p>
+        </header>
+
+        <main class="dashboard">
+            <!-- Left: Controls -->
+            <div class="controls">
+                <div class="mode-switch">
+                    <span>Non-Inverting</span>
+                    <label class="switch">
+                        <input type="checkbox" id="mode-toggle">
+                        <span class="slider-round"></span>
+                    </label>
+                    <span>Inverting</span>
+                </div>
+
+                <div class="control-group">
+                    <div class="slider-label">
+                        <span>Input Voltage (Vin)</span>
+                        <span id="vin-val">2.50V</span>
+                    </div>
+                    <input type="range" id="vin-slider" min="0" max="5" step="0.01" value="2.5">
+                </div>
+
+                <div class="control-group">
+                    <div class="slider-label">
+                        <span>Reference Voltage (Vref)</span>
+                        <span id="vref-val">1.50V</span>
+                    </div>
+                    <input type="range" id="vref-slider" min="0" max="5" step="0.01" value="1.5">
+                </div>
+
+                <div style="font-size: 0.85rem; color: var(--text-sub);">
+                    * Supply Voltage (Vcc) is fixed at <strong>5.0V</strong>.
+                </div>
+            </div>
+
+            <!-- Right: Circuit and LED -->
+            <div class="visuals">
+                <svg id="opamp-svg" viewBox="0 0 200 120">
+                    <!-- Op-Amp Triangle -->
+                    <path d="M 50 20 L 50 100 L 150 60 Z" fill="none" stroke="#1e293b" stroke-width="3"/>
+                    <!-- Inputs -->
+                    <line x1="10" y1="40" x2="50" y2="40" stroke="#1e293b" stroke-width="2"/>
+                    <line x1="10" y1="80" x2="50" y2="80" stroke="#1e293b" stroke-width="2"/>
+                    <!-- Output -->
+                    <line x1="150" y1="60" x2="190" y2="60" stroke="#1e293b" stroke-width="2"/>
+                    <!-- Symbols (+ and -) -->
+                    <text x="55" y="45" font-family="Arial" font-size="14" font-weight="bold" id="top-sign">+</text>
+                    <text x="55" y="85" font-family="Arial" font-size="14" font-weight="bold" id="bot-sign">-</text>
+                    <!-- Terminal Labels -->
+                    <text x="0" y="35" font-size="10" id="top-label">Vin</text>
+                    <text x="0" y="75" font-size="10" id="bot-label">Vref</text>
+                    <text x="175" y="55" font-size="10">Vout</text>
+                </svg>
+
+                <div class="led-container">
+                    <div id="status-led" class="led"></div>
+                    <span style="font-weight: bold; font-size: 0.8rem;">OUTPUT STATE</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- Waveform Graph -->
+        <div class="graph-container">
+            <canvas id="graph-canvas"></canvas>
+        </div>
+
+        <!-- Education Section -->
+        <section class="education">
+            <h2>How it Works</h2>
+            <p>This simulation demonstrates an Operational Amplifier (Op-Amp) acting as a <strong>Voltage Comparator</strong>. Unlike a standard amplifier that scales a signal, a comparator evaluates which of its two inputs is higher and "snaps" its output to the maximum possible voltage (Saturation).</p>
+            
+            <div class="math-box">
+                <strong>Non-Inverting Mode:</strong><br>
+                If Vin (+) > Vref (-), then Vout = Vcc (High)<br>
+                If Vin (+) < Vref (-), then Vout = 0V (Low)
+            </div>
+
+            <p>In <strong>Inverting Mode</strong>, the logic is flipped because the signal is compared at the negative terminal. This makes the Op-Amp a basic 1-bit Analog-to-Digital Converter (ADC).</p>
+            
+            <h3>Key Concept: Saturation</h3>
+            <p>Because Op-Amps have extremely high "Open-Loop Gain" (often > 100,000x), even a tiny difference of 0.001V between the inputs would result in a theoretical output of 100V. Since the Op-Amp cannot output more than its supply, it <strong>Saturates</strong> at Vcc (5V in this demo).</p>
+        </section>
+
+        <footer>
+            Built with Vanilla JS, CSS Flexbox, and HTML5 Canvas. No external assets.
+        </footer>
+    </div>
+
+    <script>
+        // Constants
+        const VCC = 5.0;
+        const CANVAS_WIDTH = 800;
+        const CANVAS_HEIGHT = 250;
+        const HISTORY_LENGTH = 400;
+
+        // State Variables
+        let vin = 2.5;
+        let vref = 1.5;
+        let isInverting = false;
+        let history = []; // Array of {vin, vref, vout}
+
+        // DOM Elements
+        const vinSlider = document.getElementById('vin-slider');
+        const vrefSlider = document.getElementById('vref-slider');
+        const modeToggle = document.getElementById('mode-toggle');
+        const vinValDisp = document.getElementById('vin-val');
+        const vrefValDisp = document.getElementById('vref-val');
+        const led = document.getElementById('status-led');
+        const canvas = document.getElementById('graph-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // SVG Labels
+        const topSign = document.getElementById('top-sign');
+        const botSign = document.getElementById('bot-sign');
+        const topLabel = document.getElementById('top-label');
+        const botLabel = document.getElementById('bot-label');
+
+        function init() {
+            // Resize canvas for high-DPI displays if needed
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            
+            // Pre-fill history
+            for(let i=0; i<HISTORY_LENGTH; i++) {
+                history.push({vin: 2.5, vref: 1.5, vout: 5.0});
+            }
+
+            // Listeners
+            vinSlider.addEventListener('input', (e) => {
+                vin = parseFloat(e.target.value);
+                vinValDisp.textContent = vin.toFixed(2) + 'V';
+            });
+
+            vrefSlider.addEventListener('input', (e) => {
+                vref = parseFloat(e.target.value);
+                vrefValDisp.textContent = vref.toFixed(2) + 'V';
+            });
+
+            modeToggle.addEventListener('change', (e) => {
+                isInverting = e.target.checked;
+                updateSVG();
+            });
+
+            requestAnimationFrame(loop);
+        }
+
+        function updateSVG() {
+            if (isInverting) {
+                topSign.textContent = '-';
+                botSign.textContent = '+';
+                topLabel.textContent = 'Vin';
+                botLabel.textContent = 'Vref';
+            } else {
+                topSign.textContent = '+';
+                botSign.textContent = '-';
+                topLabel.textContent = 'Vin';
+                botLabel.textContent = 'Vref';
+            }
+        }
+
+        function calculateVout() {
+            let v_plus, v_minus;
+            if (!isInverting) {
+                v_plus = vin;
+                v_minus = vref;
+            } else {
+                v_plus = vref;
+                v_minus = vin;
+            }
+            return (v_plus > v_minus) ? VCC : 0;
+        }
+
+        function loop() {
+            // Logic
+            const vout = calculateVout();
+            
+            // Update LED
+            if (vout > 0) led.classList.add('active');
+            else led.classList.remove('active');
+
+            // Update History (Scrolling)
+            history.shift();
+            history.push({vin, vref, vout});
+
+            // Draw
+            draw();
+
+            requestAnimationFrame(loop);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const padding = 20;
+            const graphH = (canvas.height - padding * 3) / 2; // Split for Vin and Vout
+            const topGraphY = padding + graphH;
+            const botGraphY = canvas.height - padding;
+
+            // Draw Background Grids
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, topGraphY); ctx.lineTo(canvas.width, topGraphY);
+            ctx.moveTo(0, topGraphY - graphH); ctx.lineTo(canvas.width, topGraphY - graphH);
+            ctx.moveTo(0, botGraphY); ctx.lineTo(canvas.width, botGraphY);
+            ctx.stroke();
+
+            // Labeling
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px Arial';
+            ctx.fillText('INPUT SIGNALS (V)', 5, padding - 5);
+            ctx.fillText('OUTPUT STATE (Vout)', 5, topGraphY + padding - 5);
+
+            // Draw Vref (Dashed Red Line)
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#ef4444';
+            let vrefY = topGraphY - (vref / VCC) * graphH;
+            ctx.beginPath();
+            ctx.moveTo(0, vrefY);
+            ctx.lineTo(canvas.width, vrefY);
+            ctx.stroke();
+            ctx.setLineDash([]); // Reset dash
+
+            // Draw Vin (Solid Blue)
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for(let i=0; i<history.length; i++) {
+                let x = (i / (history.length - 1)) * canvas.width;
+                let y = topGraphY - (history[i].vin / VCC) * graphH;
+                if(i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Draw Vout (Square Wave - Green)
+            ctx.strokeStyle = '#22c55e';
+            ctx.beginPath();
+            for(let i=0; i<history.length; i++) {
+                let x = (i / (history.length - 1)) * canvas.width;
+                let y = botGraphY - (history[i].vout / VCC) * (graphH * 0.8); // Scale down slightly
+                if(i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
